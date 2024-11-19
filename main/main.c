@@ -16,12 +16,27 @@
 #include <esp_log.h>
 #include <esp_ghota.h>
 
+
+#define EXAMPLE_ESP_WIFI_SSID  CONFIG_EXAMPLE_ESP_WIFI_SSID
+#define EXAMPLE_ESP_WIFI_PASS  CONFIG_EXAMPLE_ESP_WIFI_PASS
+
+#define EXAMPLE_GITHUB_HOSTNAME CONFIG_EXAMPLE_GITHUB_HOSTNAME
+#define EXAMPLE_GITHUB_OWNER    CONFIG_EXAMPLE_GITHUB_OWNER
+#define EXAMPLE_GITHUB_REPO     CONFIG_EXAMPLE_GITHUB_REPO
+
 //
 // NOTE: gitHub不能用密码推送了，必须要使用令牌 https://blog.csdn.net/weixin_42907822/article/details/128155118
 //
 
-#define EXAMPLE_ESP_WIFI_SSID  CONFIG_EXAMPLE_ESP_WIFI_SSID
-#define EXAMPLE_ESP_WIFI_PASS  CONFIG_EXAMPLE_ESP_WIFI_PASS
+#define EXAMPLE_GITHUB_USERNAME   CONFIG_EXAMPLE_GITHUB_USERNAME
+#define EXAMPLE_GITHUB_PAT_TOKEN  CONFIG_EXAMPLE_GITHUB_PAT_TOKEN
+
+#define DO_BACKGROUND_UPDATE    CONFIG_EXAMPLE_DO_BACKGROUND_UPDATE
+#define DO_FOREGROUND_UPDATE    CONFIG_EXAMPLE_DO_FOREGROUND_UPDATE
+#define DO_MANUAL_CHECK_UPDATE  CONFIG_EXAMPLE_DO_MANUAL_CHECK_UPDATE
+
+#define EXAMPLE_FIRMWARE_FILE_NAME  CONFIG_EXAMPLE_FIRMWARE_FILE_NAME
+#define EXAMPLE_STORAGE_FILE_NAME   CONFIG_EXAMPLE_STORAGE_FILE_NAME
 
 
 /* FreeRTOS event group to signal when we are connected*/
@@ -213,11 +228,14 @@ void app_main() {
 
     /* initialize our ghota config */
     ghota_config_t ghconfig = {
-        .filenamematch = "esp_ghota-esp32.bin",
-        .storagenamematch = "storage-esp32.bin",
+        .filenamematch = EXAMPLE_FIRMWARE_FILE_NAME,
+        .storagenamematch = EXAMPLE_STORAGE_FILE_NAME,
         .storagepartitionname = "storage",
         /* 1 minute as a example, but in production you should pick something larger (remember, Github has ratelimites on the API! )*/
         .updateInterval = 1,
+        .hostname = EXAMPLE_GITHUB_HOSTNAME,
+        .orgname = EXAMPLE_GITHUB_OWNER,
+        .reponame = EXAMPLE_GITHUB_REPO
     };
     /* initialize ghota. */
     ghota_client_handle_t *ghota_client = ghota_init(&ghconfig);
@@ -228,19 +246,20 @@ void app_main() {
     /* register for events relating to the update progress */
     esp_event_handler_register(GHOTA_EVENTS, ESP_EVENT_ANY_ID, &ghota_event_callback, ghota_client);
 
-#define DO_BACKGROUND_UPDATE 1
-#define DO_FOREGROUND_UPDATE 0
-#define DO_MANUAL_CHECK_UPDATE 0
-
-#ifdef DO_BACKGROUND_UPDATE
     /* for private repositories or to get more API calls than anonymouse, set a github username and PAT token
      * see https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token
      * for more information on how to create a PAT token.
      * 
      * Be carefull, as the PAT token will be stored in your firmware etc and can be used to access your github account.
      */
-    //ESP_ERROR_CHECK(ghota_set_auth(ghota_client, "<Insert GH Username>", "<insert PAT TOKEN>"));
+    
+#ifdef CONFIG_EXAMPLE_GITHUB_AUTH_TOKEN
+    ESP_ERROR_CHECK(ghota_set_auth(ghota_client, 
+    EXAMPLE_GITHUB_USERNAME, // "<Insert GH Username>" 
+    EXAMPLE_GITHUB_PAT_TOKEN)); // "<Insert PAT TOKEN>"
+#endif
 
+#ifdef DO_BACKGROUND_UPDATE
     /* start a timer that will automatically check for updates based on the interval specified above */
     ESP_ERROR_CHECK(ghota_start_update_timer(ghota_client));
 

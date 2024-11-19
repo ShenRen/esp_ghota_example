@@ -10,4 +10,73 @@ menu "Example Configuration"
         default "password"
         help
             WIFI PASSWORD
+
+    config EXAMPLE_FIRMWARE_FILE_NAME
+        string "FIRMWARE FILE NAME"
+        default "firmware_v1.0.0_esp32p4.bin"
+        help
+            firmware file name
+
+    config EXAMPLE_STORAGE_FILE_NAME
+        string "STORAGE FILE NAME"
+        default "storage_v1.0.0_esp32p4.bin"
+        help
+            storage file name
+
+        
+    config EXAMPLE_GITHUB_HOSTNAME
+        string "The Hostname of the Github Repository"
+        default "api.github.com"
+        help
+            The Hostname of the Github API Server
+
+    config EXAMPLE_GITHUB_OWNER
+        string "The User or Organization of the Github Repository"
+        default "RenShen"
+        help
+            The User or Organization of the Github Repository
+
+    config EXAMPLE_GITHUB_REPO
+        string "The Repository of the Github Repository"
+        default "esp_ghota_example"
+        help
+            The Repository of the Github Repository
+
+    config EXAMPLE_GITHUB_AUTH_TOKEN
+        bool "USE GITHUB AUTH TOKEN"
+        default n
+        help
+            Github Personal Access Tokens to overcome Github API Ratelimits
+
+    config EXAMPLE_GITHUB_USERNAME
+        string "GITHUB USERNAME"
+        depends on EXAMPLE_GITHUB_AUTH_TOKEN
+        default "User Name"
+        help
+            Insert GH Username
+
+    config EXAMPLE_GITHUB_PAT_TOKEN
+        string "GITHUB PAT TOKEN"
+        depends on EXAMPLE_GITHUB_AUTH_TOKEN
+        default "PAT Token"
+        help
+            insert PAT TOKEN
+
+    config EXAMPLE_DO_BACKGROUND_UPDATE
+        bool "DO BACKGROUND UPDATE"
+        default y
+        help
+            Do background update checks
+
+    config EXAMPLE_DO_FORGROUND_UPDATE
+        bool "DO FORGROUND UPDATE"
+        default n
+        help
+            Do forground update 
+    
+    config EXAMPLE_DO_MANUAL_UPDATE
+        bool "DO MANUAL UPDATE CHECK"
+        default n
+        help
+            Do manual update checks
 endmenu
