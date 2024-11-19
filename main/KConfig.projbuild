@@ -1,0 +1,11 @@
+menu "Example Configuration"
+    config EXAMPLE_ESP_WIFI_SSID
+        string "WIFI SSID"
+        default "wifi"
+        help
+
+    config EXAMPLE_ESP_WIFI_PASS
+        string "WIFI PASSWORD"
+        default "password"
+        help
+endmenu

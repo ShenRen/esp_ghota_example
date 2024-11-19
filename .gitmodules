@@ -1,0 +1,3 @@
+[submodule "esp_ghota"]
+	path = esp_ghota
+	url = https://github.com/ShenRen/esp_ghota.git
