@@ -35,7 +35,8 @@
 #define DO_FOREGROUND_UPDATE    CONFIG_EXAMPLE_DO_FOREGROUND_UPDATE
 #define DO_MANUAL_CHECK_UPDATE  CONFIG_EXAMPLE_DO_MANUAL_CHECK_UPDATE
 
-#define EXAMPLE_FIRMWARE_FILE_NAME  CONFIG_EXAMPLE_FIRMWARE_FILE_NAME
+// #define EXAMPLE_FIRMWARE_FILE_NAME  CONFIG_EXAMPLE_FIRMWARE_FILE_NAME
+#define EXAMPLE_FIRMWARE_FILE_NAME  (PROJECT_NAME "_" PROJECT_TARGET "_" "*.bin")
 #define EXAMPLE_STORAGE_FILE_NAME   CONFIG_EXAMPLE_STORAGE_FILE_NAME
 
 
@@ -237,6 +238,10 @@ void app_main() {
         .orgname = EXAMPLE_GITHUB_OWNER,
         .reponame = EXAMPLE_GITHUB_REPO
     };
+
+    ESP_LOGI(TAG, "firmware file match:%s",ghconfig.filenamematch);
+    ESP_LOGI(TAG, "storage file match:%s",ghconfig.storagenamematch);
+
     /* initialize ghota. */
     ghota_client_handle_t *ghota_client = ghota_init(&ghconfig);
     if (ghota_client == NULL) {

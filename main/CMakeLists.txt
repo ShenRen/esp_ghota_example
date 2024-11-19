@@ -10,3 +10,7 @@ esptool_rename_bin("${CMAKE_PROJECT_NAME}_${CONFIG_IDF_TARGET}_${PROJECT_VER}")
 
 # merge all binary files
 esptool_merge_bin("${CMAKE_PROJECT_NAME}_${CONFIG_IDF_TARGET}_${PROJECT_VER}_merged")
+
+target_compile_definitions(${COMPONENT_LIB} PUBLIC "-DPROJECT_NAME=\"${CMAKE_PROJECT_NAME}\"")
+target_compile_definitions(${COMPONENT_LIB} PUBLIC "-DPROJECT_VERSION=\"${PROJECT_VER}\"")
+target_compile_definitions(${COMPONENT_LIB} PUBLIC "-DPROJECT_TARGET=\"${CONFIG_IDF_TARGET}\"")
