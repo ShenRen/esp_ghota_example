@@ -68,11 +68,11 @@ menu "Example Configuration"
         help
             Do background update checks
 
-    config EXAMPLE_DO_FORGROUND_UPDATE
-        bool "DO FORGROUND UPDATE"
-        default n
+    config EXAMPLE_DO_FOREGROUND_UPDATE
+        bool "DO FOREGROUND UPDATE"
+        default y
         help
-            Do forground update 
+            Do foreground update 
     
     config EXAMPLE_DO_MANUAL_UPDATE
         bool "DO MANUAL UPDATE CHECK"

@@ -1,0 +1,5 @@
+version: @PROJECT_VER@
+
+# This file is used by the build system to generate the ota package.
+# It contains the versioning information for the ota package.
+# Please do not modify this file directly.

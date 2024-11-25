@@ -1,5 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
+#include <fnmatch.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include "freertos/event_groups.h"
@@ -16,29 +18,30 @@
 #include <esp_log.h>
 #include <esp_ghota.h>
 
+#include <esp_ota_ops.h>
+#include <esp_https_ota.h>
+
+// #define EXAMPLE_GITHUB_TEST 1
+#define EXAMPLE_GITEE_TEST  1
 
 #define EXAMPLE_ESP_WIFI_SSID  CONFIG_EXAMPLE_ESP_WIFI_SSID
 #define EXAMPLE_ESP_WIFI_PASS  CONFIG_EXAMPLE_ESP_WIFI_PASS
 
-#define EXAMPLE_GITHUB_HOSTNAME CONFIG_EXAMPLE_GITHUB_HOSTNAME
-#define EXAMPLE_GITHUB_OWNER    CONFIG_EXAMPLE_GITHUB_OWNER
-#define EXAMPLE_GITHUB_REPO     CONFIG_EXAMPLE_GITHUB_REPO
-
-//
-// NOTE: gitHub不能用密码推送了，必须要使用令牌 https://blog.csdn.net/weixin_42907822/article/details/128155118
-//
-
-#define EXAMPLE_GITHUB_USERNAME   CONFIG_EXAMPLE_GITHUB_USERNAME
-#define EXAMPLE_GITHUB_PAT_TOKEN  CONFIG_EXAMPLE_GITHUB_PAT_TOKEN
+    #define EXAMPLE_GITHUB_HOSTNAME CONFIG_EXAMPLE_GITHUB_HOSTNAME
+    #define EXAMPLE_GITHUB_OWNER    CONFIG_EXAMPLE_GITHUB_OWNER
+    #define EXAMPLE_GITHUB_REPO     CONFIG_EXAMPLE_GITHUB_REPO
+    #define EXAMPLE_GITHUB_USERNAME   CONFIG_EXAMPLE_GITHUB_USERNAME
+    #define EXAMPLE_GITHUB_PAT_TOKEN  CONFIG_EXAMPLE_GITHUB_PAT_TOKEN
 
 #define DO_BACKGROUND_UPDATE    CONFIG_EXAMPLE_DO_BACKGROUND_UPDATE
 #define DO_FOREGROUND_UPDATE    CONFIG_EXAMPLE_DO_FOREGROUND_UPDATE
 #define DO_MANUAL_CHECK_UPDATE  CONFIG_EXAMPLE_DO_MANUAL_CHECK_UPDATE
 
 // #define EXAMPLE_FIRMWARE_FILE_NAME  CONFIG_EXAMPLE_FIRMWARE_FILE_NAME
-#define EXAMPLE_FIRMWARE_FILE_NAME  (PROJECT_NAME "_" PROJECT_TARGET "_" "*.bin")
-#define EXAMPLE_STORAGE_FILE_NAME   CONFIG_EXAMPLE_STORAGE_FILE_NAME
-
+// #define EXAMPLE_STORAGE_FILE_NAME   CONFIG_EXAMPLE_STORAGE_FILE_NAME
+#define EXAMPLE_FIRMWARE_FILE_NAME  (PROJECT_NAME "_firmware_" PROJECT_TARGET "_%s.bin")
+#define EXAMPLE_STORAGE_FILE_NAME   (PROJECT_NAME "_storage_" PROJECT_TARGET "_%s.bin")
+#define EXAMPLE_DATA_FILE_NAME      (PROJECT_NAME "_merged_" PROJECT_TARGET "_%s.bin")
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
@@ -52,6 +55,60 @@ static EventGroupHandle_t s_wifi_event_group;
 static int s_retry_num = 0;
 
 static const char* TAG = "main";
+
+#if EXAMPLE_CUSTOM_TEST
+static esp_err_t git_apiurlformat_cb(char* url_buf, size_t url_size, const struct ghota_config_t * ghota_config)
+{
+    //snprintf(url_buf, url_size, "https://%s/api/v5/repos/%s/%s/releases", ghota_config->hostname, ghota_config->onwername, ghota_config->reponame);
+    //return ESP_OK;
+
+    ESP_LOGE(TAG, "Unimplemented function");
+    return ESP_FAIL;
+}
+#endif
+
+esp_err_t get_asset_version_cb(semver_t* version, const ghota_asset_t * asset, const struct ghota_config_t * ghota_config){
+    if(asset->type == GHOTA_ASSET_FIRMWARE){
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+        const esp_app_desc_t *app_desc = esp_app_get_description();
+#else
+        const esp_app_desc_t *app_desc = esp_ota_get_app_description();
+#endif
+        if (semver_parse(app_desc->version, version)){
+            ESP_LOGE(TAG, "Failed to parse firmware version");
+            return ESP_FAIL;
+        }
+        return ESP_OK;
+    } else if(asset->type == GHOTA_ASSET_STORAGE){
+        // TODO: Implement this
+        ESP_LOGE(TAG, "Unimplemented case GHOTA_ASSET_FILE");
+        return ESP_FAIL;
+    } else if(asset->type == GHOTA_ASSET_FILE){
+        // TODO: Implement this
+        ESP_LOGE(TAG, "Unimplemented case GHOTA_ASSET_FILE");
+        return ESP_FAIL;
+    }
+    return ESP_FAIL;
+}
+
+
+/* The order is the upgrade order */
+static ghota_asset_t ghota_assets[] = {
+    // Test update file first
+    {
+        .type = GHOTA_ASSET_FIRMWARE,
+        .nameformat = EXAMPLE_FIRMWARE_FILE_NAME,
+    },
+    {   .type = GHOTA_ASSET_STORAGE,
+        .nameformat = EXAMPLE_STORAGE_FILE_NAME,
+        .partitionname = "storage",
+    },
+    {   
+        .type = GHOTA_ASSET_FILE,
+        .nameformat = EXAMPLE_DATA_FILE_NAME,
+        .filedirpath = "/spiffs",
+    },
+};
 
 static void event_handler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data)
@@ -185,10 +242,12 @@ void mount_spiffs() {
         ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
     }
     read_from_spiffs();
+    ESP_LOGI(TAG, "storage spiffs mounted.");
 }
 
 void unmount_spiffs() {
     esp_vfs_spiffs_unregister("storage");
+        ESP_LOGI(TAG, "storage spiffs unmounted.");
 }
 
 
@@ -209,12 +268,21 @@ static void ghota_event_callback(void* handler_args, esp_event_base_t base, int3
     } else if (id == GHOTA_EVENT_STORAGE_UPDATE_PROGRESS) {
         /* display some progress with the spiffs partition update */
         ESP_LOGI(TAG, "Storage Update Progress: %d%%", *((int*) event_data));
+    } else if (id == GHOTA_EVENT_FILE_UPDATE_PROGRESS) {
+        /* display some progress with the spiffs partition update */
+        ESP_LOGI(TAG, "File Update Progress: %d%%", *((int*) event_data));
     }
     (void)client;
     return;
 }
+
 void app_main() {
     ESP_LOGI(TAG, "Starting");
+
+    // 关闭remote_wifi和esp_hosted的日志
+    esp_log_level_set("H_SDIO_DRV", ESP_LOG_WARN);     
+    esp_log_level_set("sdio_wrapper", ESP_LOG_WARN);     
+    esp_log_level_set("transport", ESP_LOG_WARN);     
 
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -223,24 +291,31 @@ void app_main() {
     }
     ESP_ERROR_CHECK(ret);
 
+    mount_spiffs();
 
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
 
     /* initialize our ghota config */
     ghota_config_t ghconfig = {
-        .filenamematch = EXAMPLE_FIRMWARE_FILE_NAME,
-        .storagenamematch = EXAMPLE_STORAGE_FILE_NAME,
-        .storagepartitionname = "storage",
+        .assets = ghota_assets,
+        .assetssize = sizeof(ghota_assets) / sizeof(ghota_asset_t),
         /* 1 minute as a example, but in production you should pick something larger (remember, Github has ratelimites on the API! )*/
         .updateInterval = 1,
+        .onwername = EXAMPLE_GITHUB_OWNER,
+        .reponame = EXAMPLE_GITHUB_REPO,
+#if EXAMPLE_GITHUB_TEST
+        .githost = GHOTA_HOST_GITHUB,
+#elif EXAMPLE_GITEE_TEST
+        .githost = GHOTA_HOST_GITEE,
+#else
         .hostname = EXAMPLE_GITHUB_HOSTNAME,
-        .orgname = EXAMPLE_GITHUB_OWNER,
-        .reponame = EXAMPLE_GITHUB_REPO
-    };
+        .githost = GHOTA_HOST_CUSTOM,
+        .apiurlformatcb = git_apiurlformat_cb,
+#endif
+        //.getversioncb = get_asset_version_cb,
 
-    ESP_LOGI(TAG, "firmware file match:%s",ghconfig.filenamematch);
-    ESP_LOGI(TAG, "storage file match:%s",ghconfig.storagenamematch);
+    };
 
     /* initialize ghota. */
     ghota_client_handle_t *ghota_client = ghota_init(&ghconfig);
@@ -267,8 +342,9 @@ void app_main() {
 #ifdef DO_BACKGROUND_UPDATE
     /* start a timer that will automatically check for updates based on the interval specified above */
     ESP_ERROR_CHECK(ghota_start_update_timer(ghota_client));
+#endif
 
-#elif DO_FORGROUND_UPDATE
+#if DO_FOREGROUND_UPDATE
     /* or do a check/update now
      * This runs in a new task under freeRTOS, so you can do other things while it is running.
      */
@@ -312,7 +388,7 @@ void app_main() {
 #endif
 
     while (1) {
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
         ESP_LOGI(TAG, "This is where we do other things. Memory Dump Below to see the memory usage");
         ESP_LOGI(TAG, "Memory: Free %dKiB Low: %dKiB\n", (int)xPortGetFreeHeapSize()/1024, (int)xPortGetMinimumEverFreeHeapSize()/1024);
     }
